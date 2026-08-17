@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tableau Animé — Éditeur tactique</title>
+<style>
+  :root{
+    --bg:#14181d; --panel:#1b2128; --panel2:#222a33; --line:#2c3540;
+    --txt:#e8eaed; --muted:#8a96a3; --accent:#f5c542; --accent-dim:#7a6320;
+    --red:#e84545; --blue:#3b82f6; --green-pitch:#2e7d46;
+    --radius:10px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:14px; display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:14px; padding:10px 16px;
+    border-bottom:1px solid var(--line); background:var(--panel); flex:0 0 auto;
+  }
+  header h1{
+    font-size:15px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent); white-space:nowrap;
+  }
+  header h1 small{color:var(--muted); font-weight:600; letter-spacing:.1em;}
+  #projName{
+    background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+    border-radius:6px; padding:6px 10px; width:220px; font-size:13px;
+  }
+  .spacer{flex:1;}
+  button{
+    background:var(--panel2); color:var(--txt); border:1px solid var(--line);
+    border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer;
+    font-family:inherit; transition:background .12s,border-color .12s;
+    white-space:nowrap;
+  }
+  button:hover{background:#2a333e; border-color:#3a4654;}
+  button.primary{background:var(--accent); color:#1a1503; border-color:var(--accent); font-weight:700;}
+  button.primary:hover{background:#ffd35c;}
+  button:disabled{opacity:.45; cursor:default;}
+  /* ---------- barre de clips ---------- */
+  #clipbar{
+    display:flex; align-items:center; gap:8px; padding:7px 16px; flex:0 0 auto;
+    background:var(--panel2); border-bottom:1px solid var(--line); overflow-x:auto;
+  }
+  #clipbar .lbl{
+    font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);
+    font-weight:700; white-space:nowrap;
+  }
+  #clipTabs{display:flex; gap:6px; align-items:center;}
+  .clip{
+    display:flex; align-items:center; gap:7px; padding:5px 11px; border-radius:7px;
+    background:var(--panel); border:1px solid var(--line); cursor:pointer;
+    font-size:13px; color:var(--muted); white-space:nowrap; user-select:none;
+  }
+  .clip:hover{color:var(--txt); border-color:#3a4654;}
+  .clip.cur{background:var(--accent); border-color:var(--accent); color:#1a1503; font-weight:700;}
+  .clip .n{font-variant-numeric:tabular-nums; opacity:.65;}
+  #clipbar button{padding:5px 9px; font-size:12px;}
+  #clipbar .check{font-size:12px; color:var(--muted); white-space:nowrap;}
+  main{flex:1; display:flex; min-height:0;}
+  /* ---------- barre d'outils ---------- */
+  #toolbar{
+    flex:0 0 64px; background:var(--panel); border-right:1px solid var(--line);
+    display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 0; overflow-y:auto;
+  }
+  .tool{
+    width:46px; height:46px; border-radius:9px; display:flex; align-items:center;
+    justify-content:center; cursor:pointer; border:1px solid transparent; position:relative;
+    color:var(--muted);
+  }
+  .tool:hover{background:var(--panel2); color:var(--txt);}
+  .tool.active{background:var(--panel2); border-color:var(--accent); color:var(--accent);}
+  .tool svg{width:24px; height:24px;}
+  .tool .dot{width:20px;height:20px;border-radius:50%;display:block;}
+  .tool[data-tip]:hover::after{
+    content:attr(data-tip); position:absolute; left:54px; top:50%; transform:translateY(-50%);
+    background:#000c; color:#fff; padding:4px 8px; border-radius:6px; font-size:12px;
+    white-space:nowrap; z-index:50; pointer-events:none;
+  }
+  .toolsep{width:32px; height:1px; background:var(--line); margin:4px 0;}
+  /* ---------- zone centrale ---------- */
+  #center{flex:1; display:flex; flex-direction:column; min-width:0;}
+  #canvasWrap{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    padding:14px; min-height:0; background:
+      radial-gradient(1200px 600px at 50% 0%, #1a2027 0%, var(--bg) 70%);
+  }
+  #pitch{
+    max-width:100%; max-height:100%; border-radius:8px;
+    box-shadow:0 10px 40px #0008, 0 0 0 1px #000a;
+    touch-action:none; cursor:crosshair;
+  }
+  /* ---------- timeline ---------- */
+  #timeline{
+    flex:0 0 auto; background:var(--panel); border-top:1px solid var(--line); padding:8px 12px 10px;
+  }
+  #transport{display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
+  #transport .tbtn{width:38px; padding:7px 0; font-size:15px;}
+  #scrub{flex:1; min-width:120px; accent-color:var(--accent);}
+  #timeInfo{color:var(--muted); font-variant-numeric:tabular-nums; font-size:12px; min-width:86px; text-align:right;}
+  #frames{display:flex; gap:8px; overflow-x:auto; padding:4px 2px;}
+  .frame{
+    flex:0 0 auto; border:2px solid var(--line); border-radius:8px; cursor:pointer;
+    position:relative; background:#000; overflow:hidden;
+  }
+  .frame.cur{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim);}
+  .frame canvas{display:block; max-width:120px; max-height:88px; width:auto; height:auto;}
+  .frame .num{
+    position:absolute; top:3px; left:3px; background:#000a; color:#fff;
+    font-size:11px; font-weight:700; padding:1px 6px; border-radius:5px;
+  }
+  #frameOps{display:flex; gap:6px; align-items:center; margin-top:6px; flex-wrap:wrap;}
+  #frameOps button{padding:5px 10px; font-size:12px;}
+  /* ---------- panneau droit ---------- */
+  #side{
+    flex:0 0 250px; background:var(--panel); border-left:1px solid var(--line);
+    overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:14px;
+  }
+  .group h3{
+    font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted);
+    margin-bottom:8px; font-weight:700;
+  }
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:7px; flex-wrap:wrap;}
+  .row label{flex:1; color:var(--muted); font-size:13px;}
+  .row input[type=text]{
+    width:110px; background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+    border-radius:6px; padding:5px 8px; font-size:13px;
+  }
+  .row select{
+    background:var(--panel2); border:1px solid var(--line); color:var(--txt);
+    border-radius:6px; padding:5px 6px; font-size:13px;
+  }
+  .row input[type=range]{flex:1; accent-color:var(--accent); min-width:80px;}
+  .row .val{color:var(--txt); font-size:12px; min-width:44px; text-align:right; font-variant-numeric:tabular-nums;}
+  .swatches{display:flex; gap:6px; flex-wrap:wrap;}
+  .sw{width:24px; height:24px; border-radius:6px; cursor:pointer; border:2px solid transparent;}
+  .sw.sel{border-color:#fff;}
+  .check{display:flex; align-items:center; gap:8px; color:var(--txt); font-size:13px; cursor:pointer;}
+  .check input{accent-color:var(--accent);}
+  #selPanel .empty{color:var(--muted); font-size:13px; line-height:1.5;}
+  #progressWrap{display:none; margin-top:8px;}
+  #progressBar{height:8px; background:var(--panel2); border-radius:4px; overflow:hidden;}
+  #progressFill{height:100%; width:0%; background:var(--accent); transition:width .1s;}
+  #progressTxt{font-size:12px; color:var(--muted); margin-top:4px;}
+  .hint{font-size:12px; color:var(--muted); line-height:1.5;}
+  kbd{background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:0 5px; font-size:11px;}
+  /* ---------- aide ---------- */
+  #helpOverlay{
+    display:none; position:fixed; inset:0; background:#000a; z-index:100;
+    align-items:center; justify-content:center;
+  }
+  #helpBox{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    max-width:560px; width:92%; max-height:84vh; overflow-y:auto; padding:24px;
+  }
+  #helpBox h2{color:var(--accent); font-size:16px; text-transform:uppercase; letter-spacing:.1em; margin-bottom:14px;}
+  #helpBox ol{padding-left:20px; line-height:1.8; font-size:14px;}
+  #helpBox li{margin-bottom:4px;}
+  #helpBox .close{margin-top:16px; width:100%;}
+  @media (max-width:900px){
+    #side{flex-basis:210px;}
+    header h1 small{display:none;}
+    #projName{width:130px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tableau Animé <small>· éditeur tactique</small></h1>
+  <input id="projName" type="text" value="Projet sans titre" title="Nom du projet">
+  <div class="spacer"></div>
+  <button id="btnHelp" title="Aide">? Aide</button>
+  <button id="btnSave">💾 Sauvegarder (.json)</button>
+  <button id="btnLoad">📂 Ouvrir</button>
+  <input type="file" id="fileInput" accept=".json" style="display:none">
+</header>
+
+<!-- CLIPS DU PROJET -->
+<div id="clipbar">
+  <span class="lbl">Clips</span>
+  <div id="clipTabs"></div>
+  <button id="btnAddClip" title="Nouveau clip vide">＋ Clip</button>
+  <button id="btnAddClipFrom" title="Nouveau clip reprenant les joueurs de l'étape 1 du clip courant">＋ depuis le dispositif</button>
+  <button id="btnDupClip" title="Dupliquer le clip courant à l'identique">⧉ Dupliquer</button>
+  <button id="btnClipL" title="Déplacer le clip vers la gauche">◀ Décaler</button>
+  <button id="btnClipR" title="Déplacer le clip vers la droite">Décaler ▶</button>
+  <button id="btnDelClip" title="Supprimer le clip courant">🗑 Supprimer</button>
+  <div class="spacer"></div>
+  <label class="check" title="La lecture enchaîne tous les clips du projet, dans l'ordre">
+    <input type="checkbox" id="chainChk"> Lecture enchaînée
+  </label>
+</div>
+
+<main>
+  <!-- BARRE D'OUTILS -->
+  <div id="toolbar">
+    <div class="tool active" data-tool="select" data-tip="Sélection / déplacement (V)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 8-6.5 1.5L9 19z" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="toolsep"></div>
+    <div class="tool" data-tool="playerA" data-tip="Joueur rouge (A)"><span class="dot" style="background:var(--red)"></span></div>
+    <div class="tool" data-tool="playerB" data-tip="Joueur bleu (B)"><span class="dot" style="background:var(--blue)"></span></div>
+    <div class="tool" data-tool="ball" data-tip="Ballon (B)"><span class="dot" style="background:#fff; width:14px;height:14px; border:2px solid #333"></span></div>
+    <div class="toolsep"></div>
+    <div class="tool" data-tool="arrowRun" data-tip="Flèche course — glisser pour tracer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20L18 6M18 6h-6M18 6v6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="tool" data-tool="arrowPass" data-tip="Flèche passe (pointillée) — glisser">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"><path d="M4 20L18 6M18 6h-6M18 6v6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="tool" data-tool="zone" data-tip="Zone colorée — glisser pour tracer">
+      <svg viewBox="0 0 24 24" fill="currentColor" opacity=".5"><rect x="4" y="6" width="16" height="12" rx="2"/></svg>
+    </div>
+    <div class="tool" data-tool="text" data-tip="Annotation texte (T)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6h14M12 6v13" stroke-linecap="round"/></svg>
+    </div>
+    <div class="toolsep"></div>
+    <div class="tool" id="btnDelete" data-tip="Supprimer la sélection (Suppr)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+
+  <!-- CANVAS + TIMELINE -->
+  <div id="center">
+    <div id="canvasWrap"><canvas id="pitch"></canvas></div>
+    <div id="timeline">
+      <div id="transport">
+        <button class="tbtn" id="btnFirst" title="Début">⏮</button>
+        <button class="tbtn primary" id="btnPlay" title="Lecture / pause (Espace)">▶</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0">
+        <span id="timeInfo">0.0 / 0.0 s</span>
+      </div>
+      <div id="frames"></div>
+      <div id="frameOps">
+        <button id="btnAddFrame">＋ Nouvelle étape (copie)</button>
+        <button id="btnDupStart">＋ Copier étape 1</button>
+        <button id="btnMoveL">◀ Décaler</button>
+        <button id="btnMoveR">Décaler ▶</button>
+        <button id="btnDelFrame">🗑 Supprimer l'étape</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANNEAU DROIT -->
+  <div id="side">
+    <div class="group" id="selPanel">
+      <h3>Sélection</h3>
+      <div class="empty">Aucun objet sélectionné.<br>Cliquez sur un objet avec l'outil flèche, ou placez-en un avec la barre d'outils.</div>
+    </div>
+
+    <div class="group">
+      <h3>Placement rapide</h3>
+      <div class="row" style="gap:6px">
+        <button id="preset433A" style="flex:1">11 rouges 4-3-3</button>
+        <button id="preset433B" style="flex:1">11 bleus 4-3-3</button>
+      </div>
+      <div class="row"><button id="btnClearAll" style="flex:1">Tout effacer</button></div>
+    </div>
+
+    <div class="group">
+      <h3>Terrain</h3>
+      <div class="row">
+        <label>Vue</label>
+        <select id="pitchMode">
+          <option value="full">Terrain entier</option>
+          <option value="half">Demi-terrain</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Orientation</label>
+        <select id="orientSel">
+          <option value="h">Horizontale</option>
+          <option value="v">Verticale</option>
+        </select>
+      </div>
+      <div class="row"><label>Taille des pastilles</label><span class="val" id="markVal">100 %</span></div>
+      <div class="row"><input type="range" id="markRange" min="60" max="220" step="5" value="100"></div>
+    </div>
+
+    <div class="group">
+      <h3>Animation</h3>
+      <div class="row"><label>Durée / transition</label><span class="val" id="durVal">1.2 s</span></div>
+      <div class="row"><input type="range" id="durRange" min="400" max="4000" step="100" value="1200"></div>
+      <div class="row"><label>Pause sur chaque étape</label><span class="val" id="holdVal">0.0 s</span></div>
+      <div class="row"><input type="range" id="holdRange" min="0" max="2000" step="100" value="0"></div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="smoothChk" checked> Trajectoires lissées (courbes)</label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="easeChk"> Accélération / décélération douce</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Export</h3>
+      <button id="btnExportPng" style="width:100%; margin-bottom:10px">📷 Exporter l'étape en PNG</button>
+      <div class="row">
+        <label>Images / s</label>
+        <select id="fpsSel"><option>10</option><option selected>15</option><option>20</option></select>
+      </div>
+      <div class="row">
+        <label>Taille</label>
+        <select id="sizeSel">
+          <option value="0.5">Petite (50%)</option>
+          <option value="0.7" selected>Moyenne (70%)</option>
+          <option value="1">Grande (100%)</option>
+        </select>
+      </div>
+      <button class="primary" id="btnExport" style="width:100%">🎬 Exporter le clip en GIF</button>
+      <div id="progressWrap">
+        <div id="progressBar"><div id="progressFill"></div></div>
+        <div id="progressTxt">Préparation…</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Raccourcis</h3>
+      <div class="hint">
+        <kbd>Espace</kbd> lecture/pause · <kbd>Suppr</kbd> effacer l'objet ·
+        <kbd>V</kbd> sélection · double-clic : éditer le n°/texte.<br><br>
+        Déplacer un objet ne modifie <b>que l'étape en cours</b> — c'est le principe des étapes clés.
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- AIDE -->
+<div id="helpOverlay">
+  <div id="helpBox">
+    <h2>Mode d'emploi</h2>
+    <ol>
+      <li><b>Placer les joueurs</b> : bouton « 11 rouges 4-3-3 » ou outil joueur puis clic sur le terrain.</li>
+      <li><b>Étape 1</b> = position de départ. Ajustez les pastilles avec l'outil sélection.</li>
+      <li><b>＋ Nouvelle étape</b> : copie l'étape courante. Déplacez ensuite les joueurs vers leur nouvelle position.</li>
+      <li>Répétez pour chaque temps fort du schéma (3 à 6 étapes suffisent souvent).</li>
+      <li><b>▶ Lecture</b> : l'outil interpole et lisse les trajectoires entre les étapes.</li>
+      <li>Ajoutez flèches, zones et textes ; la case « visible dans cette étape » permet de les faire apparaître/disparaître au bon moment.</li>
+      <li><b>🎬 Exporter le clip en GIF</b> : génère une animation en boucle, prête à insérer dans un PowerPoint ou un document.</li>
+      <li><b>💾 Sauvegarder</b> : enregistre le projet entier (tous ses clips) en .json pour le reprendre plus tard.</li>
+    </ol>
+    <h2 style="margin-top:22px">Projet et clips</h2>
+    <ol>
+      <li>Un <b>projet</b> regroupe plusieurs <b>clips</b> — par exemple un projet « Latéral »
+          avec un clip par situation à travailler.</li>
+      <li>Chaque clip a ses propres joueurs, ses étapes et son rythme ; la vue du terrain
+          (entier/demi, horizontale/verticale) est commune à tout le projet.</li>
+      <li><b>＋ depuis le dispositif</b> : crée un clip qui reprend les joueurs et le ballon
+          de l'étape 1 du clip courant, sans les flèches ni les zones — pour enchaîner
+          plusieurs situations sans replacer l'équipe.</li>
+      <li><b>Double-clic</b> sur un onglet de clip pour le renommer, <b>◀ ▶</b> pour changer
+          son rang dans le projet.</li>
+      <li><b>Lecture enchaînée</b> : ▶ déroule tous les clips à la suite, dans l'ordre des
+          onglets — le projet devient présentable d'un bout à l'autre.</li>
+    </ol>
+    <button class="close" id="btnCloseHelp">Fermer</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   TABLEAU ANIMÉ — éditeur d'animations tactiques 2D
+   Fichier autonome : aucun réseau, aucune dépendance.
+   ===================================================================== */
+
+/* ---------- Constantes terrain (en mètres) ---------- */
+const PITCH = { L:105, W:68 };          // longueur / largeur
+const MARGIN = 4;                       // marge autour du terrain (m)
+
+/* ---------- État global ----------
+   Un PROJET (le fichier .json) contient plusieurs CLIPS ; un clip est une
+   animation autonome (ses objets, ses étapes, son rythme). La vue du terrain
+   est en revanche commune à tout le projet : changer de terrain ou
+   d'orientation entre deux clips serait déroutant à la présentation. */
+function newClip(name){
+  return {
+    name: name || 'Clip',
+    objects: [],                 // {id,type,label,color,fontSize}
+    frames: [ { pose:{} } ],     // pose[id] = {x,y,(x2,y2|w,h),visible}
+    current: 0,                  // étape affichée
+    durMs: 1200, holdMs: 0, smooth: true, ease: false,
+  };
+}
+const state = {
+  pitch: 'full',                 // 'full' | 'half'   — projet
+  orient: 'h',                   // 'h' | 'v'         — projet
+  markScale: 1,                  // taille des pastilles (joueurs + ballon) — projet
+  chain: false,                  // lecture enchaînée de tous les clips
+  clips: [ newClip('Clip 1') ],
+  clip: 0,                       // index du clip ouvert
+  selected: null,                // id objet sélectionné
+  tool: 'select',
+};
+/* Les champs du clip courant sont exposés directement sur `state` : tout le
+   reste du fichier peut continuer à lire state.objects / state.frames /
+   state.current / state.durMs… sans savoir qu'il y a plusieurs clips. */
+for(const f of ['objects','frames','current','durMs','holdMs','smooth','ease']){
+  Object.defineProperty(state, f, {
+    get(){ return state.clips[state.clip][f]; },
+    set(v){ state.clips[state.clip][f]=v; },
+  });
+}
+let nextId = 1;
+const uid = () => 'o' + (nextId++);
+
+/* ---------- Canvas & transformation monde <-> écran ---------- */
+const cv = document.getElementById('pitch');
+const ctx = cv.getContext('2d');
+
+function canvasDims(){
+  const v = worldView();
+  const vert = state.orient === 'v';
+  const w = vert ? v.h : v.w, h = vert ? v.w : v.h;   // étendue projetée
+  const base = state.pitch === 'full' ? 1020 : 820;   // grande dimension en px
+  const s = base / Math.max(w, h);
+  return {w: Math.round(w*s), h: Math.round(h*s)};
+}
+function worldView(){
+  // zone du monde affichée (m)
+  if (state.pitch === 'full')
+    return {x:-MARGIN, y:-MARGIN, w:PITCH.L+2*MARGIN, h:PITCH.W+2*MARGIN};
+  return {x:-MARGIN, y:-MARGIN, w:PITCH.L/2+2*MARGIN, h:PITCH.W+2*MARGIN};
+}
+function makeTransform(cw, ch){
+  const v = worldView();
+  const vert = state.orient === 'v';
+  const vw = vert ? v.h : v.w, vh = vert ? v.w : v.h;
+  const s = Math.min(cw / vw, ch / vh);
+  const ox = (cw - vw*s)/2, oy = (ch - vh*s)/2;
+  if(!vert){
+    return { s,
+      toPx : (x,y)=>({x:(x-v.x)*s+ox, y:(y-v.y)*s+oy}),
+      toW  : (px,py)=>({x:(px-ox)/s+v.x, y:(py-oy)/s+v.y}) };
+  }
+  // vertical : rotation 90° — le but gauche (x=0) est en bas, attaque vers le haut
+  return { s,
+    toPx : (x,y)=>({x:(y-v.y)*s+ox, y:(v.x+v.w-x)*s+oy}),
+    toW  : (px,py)=>({x:v.x+v.w-(py-oy)/s, y:(px-ox)/s+v.y}) };
+}
+let T = null;
+function resizeCanvas(){
+  const d = canvasDims();
+  cv.width = d.w; cv.height = d.h;
+  T = makeTransform(d.w, d.h);
+}
+resizeCanvas();
+
+/* ---------- Dessin du terrain ---------- */
+function drawPitch(c, t){
+  const s = t.s;
+  const v = worldView();
+  const rot = state.orient==='v' ? -Math.PI/2 : 0;   // décalage angulaire des arcs
+  // herbe + bandes de tonte
+  c.fillStyle = '#2e7d46';
+  c.fillRect(0,0,c.canvas.width,c.canvas.height);
+  const bandW = PITCH.L/10;
+  c.fillStyle = '#2a7340';
+  for(let i=0;i<10;i++){
+    if(i%2===0) continue;
+    const a = t.toPx(i*bandW, v.y), b = t.toPx((i+1)*bandW, v.y+v.h);
+    c.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+  }
+  c.strokeStyle = 'rgba(255,255,255,.92)';
+  c.lineWidth = Math.max(1.5, 0.18*s);
+  c.lineJoin = 'round';
+  const line = (x1,y1,x2,y2)=>{ const a=t.toPx(x1,y1), b=t.toPx(x2,y2);
+    c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke(); };
+  const rect = (x,y,w,h)=>{ const a=t.toPx(x,y), b=t.toPx(x+w,y+h);
+    c.strokeRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y)); };
+  const circle = (x,y,r,a0=0,a1=Math.PI*2)=>{ const p=t.toPx(x,y);
+    c.beginPath(); c.arc(p.x,p.y,r*s,a0+rot,a1+rot); c.stroke(); };
+  const spot = (x,y)=>{ const p=t.toPx(x,y);
+    c.beginPath(); c.arc(p.x,p.y,Math.max(2,0.25*s),0,Math.PI*2);
+    c.fillStyle='rgba(255,255,255,.92)'; c.fill(); };
+
+  const full = state.pitch==='full';
+  const RX = full ? PITCH.L : PITCH.L/2;   // bord droit visible
+
+  // contour
+  rect(0,0,RX,PITCH.W);
+  if(full) line(PITCH.L/2,0,PITCH.L/2,PITCH.W);
+  // rond central / arc central
+  if(full) circle(PITCH.L/2,PITCH.W/2,9.15);
+  else circle(PITCH.L/2,PITCH.W/2,9.15,Math.PI/2,Math.PI*1.5);
+  spot(full?PITCH.L/2:PITCH.L/2, PITCH.W/2);
+
+  // surfaces côté gauche
+  const cy=PITCH.W/2;
+  rect(0,cy-20.16,16.5,40.32);          // surface de réparation
+  rect(0,cy-9.16,5.5,18.32);            // surface de but
+  spot(11,cy);                          // point de penalty
+  // arc de cercle de la surface
+  (function(){ const p=t.toPx(11,cy);
+    c.beginPath(); c.arc(p.x,p.y,9.15*s,-0.93+rot,0.93+rot); c.stroke(); })();
+  // but
+  rect(-2,cy-3.66,2,7.32);
+  // coins gauche
+  circle(0,0,1,0,Math.PI/2); circle(0,PITCH.W,1,-Math.PI/2,0);
+
+  if(full){
+    rect(PITCH.L-16.5,cy-20.16,16.5,40.32);
+    rect(PITCH.L-5.5,cy-9.16,5.5,18.32);
+    spot(PITCH.L-11,cy);
+    (function(){ const p=t.toPx(PITCH.L-11,cy);
+      c.beginPath(); c.arc(p.x,p.y,9.15*s,Math.PI-0.93+rot,Math.PI+0.93+rot); c.stroke(); })();
+    rect(PITCH.L,cy-3.66,2,7.32);
+    circle(PITCH.L,0,1,Math.PI/2,Math.PI); circle(PITCH.L,PITCH.W,1,Math.PI,Math.PI*1.5);
+  }
+}
+
+/* ---------- Dessin des objets ---------- */
+const PLAYER_R = 1.6;   // rayon pastille (m) à l'échelle 100 %
+const BALL_R   = 0.9;
+/* Rayons effectifs : le facteur `markScale` (réglage « Taille des pastilles »)
+   agrandit ou réduit joueurs et ballon ensemble, sans toucher au terrain —
+   une même situation se lit mieux avec de grosses pastilles sur un demi-terrain
+   et de petites sur un terrain entier chargé. Toujours passer par ces deux
+   fonctions (dessin ET hit test) pour que le clic reste calé sur le dessin. */
+const playerR = () => PLAYER_R * state.markScale;
+const ballR   = () => BALL_R   * state.markScale;
+
+function drawObjects(c, t, pose, selId){
+  const order = ['zone','arrow','player','ball','text'];
+  const objsByLayer = layer => state.objects.filter(o=>{
+    if(layer==='arrow') return o.type==='arrowRun'||o.type==='arrowPass';
+    if(layer==='player') return o.type==='playerA'||o.type==='playerB';
+    return o.type===layer;
+  });
+  for(const layer of order){
+    for(const o of objsByLayer(layer)){
+      const p = pose[o.id];
+      if(!p) continue;
+      const op = (p.opacity!==undefined) ? p.opacity : (p.visible===false?0:1);
+      if(op<=0.01) continue;
+      c.globalAlpha = op;
+      if(layer==='zone') drawZone(c,t,o,p);
+      else if(layer==='arrow') drawArrow(c,t,o,p);
+      else if(layer==='player') drawPlayer(c,t,o,p, o.id===selId);
+      else if(layer==='ball') drawBall(c,t,o,p, o.id===selId);
+      else if(layer==='text') drawText(c,t,o,p, o.id===selId);
+      c.globalAlpha = 1;
+      // surbrillance sélection pour zones / flèches
+      if(o.id===selId && (layer==='zone'||layer==='arrow')) drawHandles(c,t,o,p);
+    }
+  }
+}
+function drawPlayer(c,t,o,p,sel){
+  const q = t.toPx(p.x,p.y), r = playerR()*t.s;
+  c.beginPath(); c.arc(q.x,q.y+r*0.18,r,0,Math.PI*2);
+  c.fillStyle='rgba(0,0,0,.30)'; c.fill();          // ombre
+  c.beginPath(); c.arc(q.x,q.y,r,0,Math.PI*2);
+  c.fillStyle=o.color; c.fill();
+  c.lineWidth=Math.max(1.2,0.18*t.s);
+  c.strokeStyle='rgba(255,255,255,.9)'; c.stroke();
+  c.fillStyle='#fff';
+  c.font=`bold ${Math.round(r*1.05)}px system-ui,sans-serif`;
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillText(o.label||'', q.x, q.y+r*0.06);
+  if(sel) selRing(c,q,r*1.45,t);
+}
+function drawBall(c,t,o,p,sel){
+  const q=t.toPx(p.x,p.y), r=ballR()*t.s;
+  c.beginPath(); c.arc(q.x,q.y+r*0.25,r*0.95,0,Math.PI*2);
+  c.fillStyle='rgba(0,0,0,.30)'; c.fill();
+  c.beginPath(); c.arc(q.x,q.y,r,0,Math.PI*2);
+  c.fillStyle='#fff'; c.fill();
+  c.lineWidth=Math.max(1,0.12*t.s); c.strokeStyle='#222'; c.stroke();
+  // pentagone central
+  c.beginPath();
+  for(let i=0;i<5;i++){ const a=-Math.PI/2+i*2*Math.PI/5;
+    const x=q.x+Math.cos(a)*r*0.45, y=q.y+Math.sin(a)*r*0.45;
+    i?c.lineTo(x,y):c.moveTo(x,y); }
+  c.closePath(); c.fillStyle='#222'; c.fill();
+  if(sel) selRing(c,q,r*1.8,t);
+}
+function selRing(c,q,r,t){
+  c.beginPath(); c.arc(q.x,q.y,r,0,Math.PI*2);
+  c.setLineDash([5,4]); c.lineWidth=2; c.strokeStyle='#f5c542';
+  c.stroke(); c.setLineDash([]);
+}
+function drawArrow(c,t,o,p){
+  const a=t.toPx(p.x,p.y), b=t.toPx(p.x2,p.y2);
+  const lw=Math.max(2,0.35*t.s);
+  c.lineWidth=lw; c.strokeStyle=o.color; c.lineCap='round';
+  if(o.type==='arrowPass') c.setLineDash([lw*2.2, lw*1.8]);
+  const ang=Math.atan2(b.y-a.y,b.x-a.x);
+  const head=lw*3.4;
+  const bx=b.x-Math.cos(ang)*head*0.7, by=b.y-Math.sin(ang)*head*0.7;
+  c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(bx,by); c.stroke();
+  c.setLineDash([]);
+  c.beginPath();
+  c.moveTo(b.x,b.y);
+  c.lineTo(b.x-Math.cos(ang-0.42)*head, b.y-Math.sin(ang-0.42)*head);
+  c.lineTo(b.x-Math.cos(ang+0.42)*head, b.y-Math.sin(ang+0.42)*head);
+  c.closePath(); c.fillStyle=o.color; c.fill();
+}
+function drawZone(c,t,o,p){
+  const a=t.toPx(p.x,p.y), b=t.toPx(p.x+p.w,p.y+p.h);
+  const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y);
+  const w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
+  c.fillStyle=hexA(o.color,0.28); 
+  roundRect(c,x,y,w,h,Math.min(10,w/6,h/6)); c.fill();
+  c.lineWidth=Math.max(1.5,0.2*t.s); c.strokeStyle=hexA(o.color,0.85);
+  c.setLineDash([6,5]); roundRect(c,x,y,w,h,Math.min(10,w/6,h/6)); c.stroke(); c.setLineDash([]);
+}
+function drawText(c,t,o,p,sel){
+  const q=t.toPx(p.x,p.y);
+  const fs=(o.fontSize||3)*t.s;
+  c.font=`800 ${fs}px system-ui,sans-serif`;
+  c.textAlign='center'; c.textBaseline='middle';
+  const txt=o.label||'Texte';
+  const wpx=c.measureText(txt).width;
+  c.fillStyle='rgba(0,0,0,.55)';
+  roundRect(c,q.x-wpx/2-fs*0.4, q.y-fs*0.72, wpx+fs*0.8, fs*1.44, fs*0.3); c.fill();
+  c.fillStyle=o.color||'#ffffff';
+  c.fillText(txt,q.x,q.y);
+  if(sel){ c.setLineDash([5,4]); c.strokeStyle='#f5c542'; c.lineWidth=2;
+    roundRect(c,q.x-wpx/2-fs*0.4, q.y-fs*0.72, wpx+fs*0.8, fs*1.44, fs*0.3); c.stroke(); c.setLineDash([]); }
+}
+function drawHandles(c,t,o,p){
+  const pts = (o.type==='zone')
+    ? [t.toPx(p.x,p.y), t.toPx(p.x+p.w,p.y+p.h)]
+    : [t.toPx(p.x,p.y), t.toPx(p.x2,p.y2)];
+  for(const q of pts){
+    c.beginPath(); c.arc(q.x,q.y,6,0,Math.PI*2);
+    c.fillStyle='#f5c542'; c.fill();
+    c.lineWidth=2; c.strokeStyle='#1a1503'; c.stroke();
+  }
+}
+function roundRect(c,x,y,w,h,r){
+  r=Math.max(0,Math.min(r,Math.abs(w)/2,Math.abs(h)/2));
+  c.beginPath();
+  c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();
+}
+function hexA(hex,a){
+  const n=parseInt(hex.slice(1),16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+
+/* ---------- Interpolation ---------- */
+function lerp(a,b,u){ return a+(b-a)*u; }
+function catmull(p0,p1,p2,p3,u){
+  const u2=u*u,u3=u2*u;
+  return 0.5*((2*p1)+(-p0+p2)*u+(2*p0-5*p1+4*p2-p3)*u2+(-p0+3*p1-3*p2+p3)*u3);
+}
+function smoothstep(u){ return u*u*(3-2*u); }
+
+// pose interpolée entre les étapes i et i+1, paramètre u (0..1)
+function interpPose(i,u){
+  const n=state.frames.length;
+  if(state.ease) u=smoothstep(u);
+  const F=k=>state.frames[Math.max(0,Math.min(n-1,k))].pose;
+  const out={};
+  for(const o of state.objects){
+    const A=F(i)[o.id], B=F(i+1)[o.id];
+    if(!A||!B) continue;
+    const fields=['x','y','x2','y2','w','h'];
+    const r={};
+    for(const f of fields){
+      if(A[f]===undefined) continue;
+      if(state.smooth){
+        const P0=F(i-1)[o.id]?.[f] ?? A[f];
+        const P3=F(i+2)[o.id]?.[f] ?? B[f];
+        r[f]=catmull(P0,A[f],B[f],P3,u);
+      } else r[f]=lerp(A[f],B[f],u);
+    }
+    r.opacity = lerp(A.visible===false?0:1, B.visible===false?0:1, u);
+    out[o.id]=r;
+  }
+  return out;
+}
+function framePose(i){
+  const out={};
+  const P=state.frames[i].pose;
+  for(const o of state.objects){
+    if(!P[o.id]) continue;
+    out[o.id]={...P[o.id], opacity:P[o.id].visible===false?0:1};
+  }
+  return out;
+}
+
+/* ---------- Chronologie : holds + transitions ---------- */
+function schedule(ci){
+  const c = state.clips[ci===undefined ? state.clip : ci];
+  const segs=[];
+  const n=c.frames.length;
+  for(let i=0;i<n;i++){
+    if(c.holdMs>0) segs.push({type:'hold',frame:i,dur:c.holdMs});
+    if(i<n-1) segs.push({type:'trans',from:i,dur:c.durMs});
+  }
+  if(segs.length===0) segs.push({type:'hold',frame:0,dur:1000});
+  const total=segs.reduce((s,x)=>s+x.dur,0);
+  return {segs,total};
+}
+function poseAtTime(ms){
+  const {segs,total}=schedule();
+  ms=Math.max(0,Math.min(total-0.001,ms));
+  let acc=0;
+  for(const sg of segs){
+    if(ms<acc+sg.dur){
+      if(sg.type==='hold') return framePose(sg.frame);
+      return interpPose(sg.from,(ms-acc)/sg.dur);
+    }
+    acc+=sg.dur;
+  }
+  return framePose(state.frames.length-1);
+}
+
+/* ---------- Rendu principal ---------- */
+let playing=false, playT0=0, playOffset=0;
+function render(pose){
+  drawPitch(ctx,T);
+  drawObjects(ctx,T,pose ?? framePose(state.current), state.selected);
+}
+function loop(now){
+  if(!playing) return;
+  let tms=(now-playT0)+playOffset;
+  if(state.chain){
+    // on rebase à chaque image : le temps déborde du clip courant, on passe au
+    // suivant (et on reboucle sur le premier à la fin du projet)
+    let guard=0;
+    while(tms>=schedule(state.clip).total && guard++<=state.clips.length){
+      tms-=schedule(state.clip).total;
+      state.clip=(state.clip+1)%state.clips.length;
+      state.selected=null;
+      highlightClipTab();
+    }
+    playT0=now; playOffset=tms;
+  } else {
+    const total=schedule().total;
+    if(tms>=total){ tms=tms%total; playT0=now; playOffset=tms; } // boucle
+  }
+  const {total}=schedule();
+  render(poseAtTime(tms));
+  scrub.value=Math.round(tms/total*1000);
+  timeInfo.textContent=(state.chain?state.clips[state.clip].name+' · ':'')
+    +(tms/1000).toFixed(1)+' / '+(total/1000).toFixed(1)+' s';
+  requestAnimationFrame(loop);
+}
+function startPlay(){
+  const playable = state.frames.length>=2 || state.holdMs>0;
+  if(!playable && !(state.chain && state.clips.length>1)) return;
+  playing=true; playT0=performance.now();
+  playOffset=Number(scrub.value)/1000*schedule().total;
+  if(playOffset>=schedule().total-10) playOffset=0;
+  btnPlay.textContent='⏸';
+  requestAnimationFrame(loop);
+}
+function stopPlay(){
+  const wasPlaying=playing;
+  playing=false; btnPlay.textContent='▶';
+  render(poseAtTime(Number(scrub.value)/1000*schedule().total));
+  // en lecture enchaînée le clip courant a pu changer pendant la lecture :
+  // les vignettes d'étapes et les réglages doivent rattraper le clip affiché
+  if(wasPlaying && state.chain) refreshAll();
+}
+
+/* ---------- Objets : création ---------- */
+const TEAM_COLORS={playerA:'#e84545',playerB:'#3b82f6'};
+function countTeam(team){ return state.objects.filter(o=>o.type===team).length; }
+function addObject(type, w){
+  const o={id:uid(),type};
+  if(type==='playerA'||type==='playerB'){
+    o.color=TEAM_COLORS[type];
+    o.label=String(countTeam(type)+1);
+  }
+  else if(type==='arrowRun'||type==='arrowPass') o.color='#f5c542';
+  else if(type==='zone') o.color='#f5c542';
+  else if(type==='text'){ o.color='#ffffff'; o.label='Texte'; o.fontSize=3; }
+  state.objects.push(o);
+  // position copiée dans toutes les étapes
+  for(const f of state.frames){
+    const p={x:w.x,y:w.y,visible:true};
+    if(type==='arrowRun'||type==='arrowPass'){ p.x2=w.x2??w.x+8; p.y2=w.y2??w.y; }
+    if(type==='zone'){ p.w=w.w??12; p.h=w.h??10; }
+    f.pose[o.id]={...p};
+  }
+  return o;
+}
+function deleteObject(id){
+  state.objects=state.objects.filter(o=>o.id!==id);
+  for(const f of state.frames) delete f.pose[id];
+  if(state.selected===id) state.selected=null;
+  refreshAll();
+}
+
+/* ---------- Hit test ---------- */
+function hitTest(w){
+  const P=state.frames[state.current].pose;
+  const near=(a,b,r)=>Math.hypot(a.x-b.x,a.y-b.y)<=r;
+  // priorité : joueurs/ballon > textes > flèches > zones
+  for(const o of [...state.objects].reverse()){
+    const p=P[o.id]; if(!p) continue;
+    if((o.type==='playerA'||o.type==='playerB') && near(w,p,playerR()*1.3)) return {o,part:'body'};
+    if(o.type==='ball' && near(w,p,Math.max(ballR()*1.8, 1.2))) return {o,part:'body'};
+  }
+  for(const o of [...state.objects].reverse()){
+    const p=P[o.id]; if(!p) continue;
+    if(o.type==='text'){
+      const fs=o.fontSize||3;
+      const halfW=(o.label||'Texte').length*fs*0.32+fs*0.4;
+      if(Math.abs(w.x-p.x)<halfW && Math.abs(w.y-p.y)<fs*0.9) return {o,part:'body'};
+    }
+  }
+  for(const o of [...state.objects].reverse()){
+    const p=P[o.id]; if(!p) continue;
+    if(o.type==='arrowRun'||o.type==='arrowPass'){
+      if(near(w,{x:p.x,y:p.y},1.4)) return {o,part:'p1'};
+      if(near(w,{x:p.x2,y:p.y2},1.4)) return {o,part:'p2'};
+      if(distSeg(w,p)<1.1) return {o,part:'body'};
+    }
+  }
+  for(const o of [...state.objects].reverse()){
+    const p=P[o.id]; if(!p) continue;
+    if(o.type==='zone'){
+      if(near(w,{x:p.x+p.w,y:p.y+p.h},1.6)) return {o,part:'br'};
+      if(near(w,{x:p.x,y:p.y},1.6)) return {o,part:'tl'};
+      if(w.x>=p.x&&w.x<=p.x+p.w&&w.y>=p.y&&w.y<=p.y+p.h) return {o,part:'body'};
+    }
+  }
+  return null;
+}
+function distSeg(p,s){
+  const dx=s.x2-s.x, dy=s.y2-s.y;
+  const l2=dx*dx+dy*dy;
+  if(l2===0) return Math.hypot(p.x-s.x,p.y-s.y);
+  let t=((p.x-s.x)*dx+(p.y-s.y)*dy)/l2; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(s.x+t*dx), p.y-(s.y+t*dy));
+}
+
+/* ---------- Interactions souris / tactile ---------- */
+let drag=null;
+cv.addEventListener('pointerdown',e=>{
+  if(playing) stopPlay();
+  cv.setPointerCapture(e.pointerId);
+  const w=eventWorld(e);
+  const tool=state.tool;
+  if(tool==='select'){
+    const hit=hitTest(w);
+    if(hit){
+      state.selected=hit.o.id;
+      const p=state.frames[state.current].pose[hit.o.id];
+      drag={id:hit.o.id, part:hit.part, start:w, orig:{...p}};
+    } else state.selected=null;
+    refreshSel(); render(); 
+    return;
+  }
+  if(tool==='playerA'||tool==='playerB'||tool==='ball'||tool==='text'){
+    const o=addObject(tool,{x:w.x,y:w.y});
+    state.selected=o.id;
+    setTool('select');
+    refreshAll();
+    return;
+  }
+  if(tool==='arrowRun'||tool==='arrowPass'||tool==='zone'){
+    drag={creating:tool, start:w, id:null};
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const w=eventWorld(e);
+  if(drag.creating){
+    if(!drag.id){
+      if(Math.hypot(w.x-drag.start.x,w.y-drag.start.y)<0.8) return;
+      let o;
+      if(drag.creating==='zone'){
+        o=addObject('zone',{x:drag.start.x,y:drag.start.y,w:1,h:1});
+      } else {
+        o=addObject(drag.creating,{x:drag.start.x,y:drag.start.y,x2:w.x,y2:w.y});
+      }
+      drag.id=o.id; state.selected=o.id;
+    }
+    const p=state.frames[state.current].pose[drag.id];
+    if(drag.creating==='zone'){
+      p.x=Math.min(drag.start.x,w.x); p.y=Math.min(drag.start.y,w.y);
+      p.w=Math.abs(w.x-drag.start.x); p.h=Math.abs(w.y-drag.start.y);
+      // appliquer aussi aux autres étapes (création)
+      for(const f of state.frames) Object.assign(f.pose[drag.id],p);
+    } else {
+      p.x2=w.x; p.y2=w.y;
+      for(const f of state.frames) Object.assign(f.pose[drag.id],{x:p.x,y:p.y,x2:p.x2,y2:p.y2});
+    }
+    render();
+    return;
+  }
+  // déplacement (uniquement l'étape courante)
+  const p=state.frames[state.current].pose[drag.id];
+  const dx=w.x-drag.start.x, dy=w.y-drag.start.y;
+  if(drag.part==='body'){
+    p.x=drag.orig.x+dx; p.y=drag.orig.y+dy;
+    if(p.x2!==undefined){ p.x2=drag.orig.x2+dx; p.y2=drag.orig.y2+dy; }
+  } else if(drag.part==='p1'){ p.x=drag.orig.x+dx; p.y=drag.orig.y+dy; }
+  else if(drag.part==='p2'){ p.x2=drag.orig.x2+dx; p.y2=drag.orig.y2+dy; }
+  else if(drag.part==='br'){ p.w=Math.max(2,drag.orig.w+dx); p.h=Math.max(2,drag.orig.h+dy); }
+  else if(drag.part==='tl'){
+    const nx=drag.orig.x+dx, ny=drag.orig.y+dy;
+    p.w=Math.max(2,drag.orig.w-(nx-drag.orig.x)); p.h=Math.max(2,drag.orig.h-(ny-drag.orig.y));
+    p.x=nx; p.y=ny;
+  }
+  render();
+});
+cv.addEventListener('pointerup',e=>{
+  if(drag){
+    if(drag.creating && !drag.id){ setTool('select'); }
+    else if(drag.creating){ setTool('select'); refreshAll(); }
+    else { updateThumb(state.current); refreshSel(); }
+  }
+  drag=null;
+});
+cv.addEventListener('dblclick',e=>{
+  const w=eventWorld(e);
+  const hit=hitTest(w);
+  if(hit && (hit.o.type==='playerA'||hit.o.type==='playerB'||hit.o.type==='text')){
+    state.selected=hit.o.id; refreshSel(); render();
+    const inp=document.getElementById('propLabel');
+    if(inp){ inp.focus(); inp.select(); }
+  }
+});
+function eventWorld(e){
+  const r=cv.getBoundingClientRect();
+  const px=(e.clientX-r.left)*cv.width/r.width;
+  const py=(e.clientY-r.top)*cv.height/r.height;
+  return T.toW(px,py);
+}
+
+/* ---------- Outils ---------- */
+function setTool(t){
+  state.tool=t;
+  document.querySelectorAll('.tool[data-tool]').forEach(el=>
+    el.classList.toggle('active', el.dataset.tool===t));
+  cv.style.cursor = t==='select' ? 'default' : 'crosshair';
+}
+document.querySelectorAll('.tool[data-tool]').forEach(el=>
+  el.addEventListener('click',()=>setTool(el.dataset.tool)));
+document.getElementById('btnDelete').addEventListener('click',()=>{
+  if(state.selected) deleteObject(state.selected);
+});
+
+/* ---------- Panneau de propriétés ---------- */
+const selPanel=document.getElementById('selPanel');
+const SWATCH={
+  player:['#e84545','#3b82f6','#f5c542','#16a34a','#111827','#ffffff'],
+  other:['#f5c542','#e84545','#3b82f6','#16a34a','#ffffff','#111827'],
+};
+function refreshSel(){
+  const o=state.objects.find(x=>x.id===state.selected);
+  if(!o){ selPanel.innerHTML='<h3>Sélection</h3><div class="empty">Aucun objet sélectionné.<br>Cliquez sur un objet avec l\'outil flèche, ou placez-en un avec la barre d\'outils.</div>'; return; }
+  const p=state.frames[state.current].pose[o.id];
+  const names={playerA:'Joueur rouge',playerB:'Joueur bleu',ball:'Ballon',
+    arrowRun:'Flèche course',arrowPass:'Flèche passe',zone:'Zone',text:'Texte'};
+  let html=`<h3>Sélection — ${names[o.type]}</h3>`;
+  if(o.type!=='ball' && o.type!=='zone' && o.type!=='arrowRun' && o.type!=='arrowPass'){
+    html+=`<div class="row"><label>${o.type==='text'?'Texte':'Numéro / nom'}</label>
+      <input type="text" id="propLabel" value="${(o.label||'').replace(/"/g,'&quot;')}"></div>`;
+  }
+  if(o.type==='text'){
+    html+=`<div class="row"><label>Taille</label>
+      <input type="range" id="propFont" min="2" max="7" step="0.5" value="${o.fontSize||3}"></div>`;
+  }
+  if(o.type!=='ball'){
+    const pal=(o.type==='playerA'||o.type==='playerB')?SWATCH.player:SWATCH.other;
+    html+=`<div class="row"><label>Couleur</label></div><div class="swatches">`+
+      pal.map(c=>`<span class="sw ${c===o.color?'sel':''}" data-c="${c}" style="background:${c}"></span>`).join('')+`</div>`;
+  }
+  html+=`<div class="row" style="margin-top:10px"><label class="check">
+    <input type="checkbox" id="propVis" ${p.visible===false?'':'checked'}> Visible dans cette étape</label></div>`;
+  html+=`<div class="row"><button id="propDel" style="flex:1">🗑 Supprimer l'objet</button></div>`;
+  selPanel.innerHTML=html;
+  const lab=document.getElementById('propLabel');
+  if(lab) lab.addEventListener('input',()=>{ o.label=lab.value; render(); updateThumb(state.current); });
+  const fnt=document.getElementById('propFont');
+  if(fnt) fnt.addEventListener('input',()=>{ o.fontSize=Number(fnt.value); render(); });
+  selPanel.querySelectorAll('.sw').forEach(sw=>sw.addEventListener('click',()=>{
+    o.color=sw.dataset.c; refreshSel(); render(); updateThumb(state.current);
+  }));
+  document.getElementById('propVis').addEventListener('change',ev=>{
+    p.visible=ev.target.checked; render(); updateThumb(state.current);
+  });
+  document.getElementById('propDel').addEventListener('click',()=>deleteObject(o.id));
+}
+
+/* ---------- Étapes (frames) ---------- */
+const framesEl=document.getElementById('frames');
+function refreshFrames(){
+  framesEl.innerHTML='';
+  state.frames.forEach((f,i)=>{
+    const div=document.createElement('div');
+    div.className='frame'+(i===state.current?' cur':'');
+    const th=document.createElement('canvas');
+    const d=canvasDims();
+    th.width=192; th.height=Math.round(192*d.h/d.w);
+    div.appendChild(th);
+    const num=document.createElement('span'); num.className='num'; num.textContent=i+1;
+    div.appendChild(num);
+    div.addEventListener('click',()=>{ selectFrame(i); });
+    framesEl.appendChild(div);
+    drawThumb(th,i);
+  });
+}
+function drawThumb(th,i){
+  const c=th.getContext('2d');
+  const t=makeTransform(th.width,th.height);
+  const save=ctxSwap(t);
+  drawPitch(c,t);
+  drawObjects(c,t,framePose(i),null);
+  ctxSwap(save);
+}
+function ctxSwap(t){ const old=T; T=t; return old; } // ré-utilise drawPitch qui lit worldView()
+function updateThumb(i){
+  const th=framesEl.children[i]?.querySelector('canvas');
+  if(th) drawThumb(th,i);
+}
+function selectFrame(i){
+  stopPlay();
+  state.current=i;
+  framesEl.querySelectorAll('.frame').forEach((el,k)=>el.classList.toggle('cur',k===i));
+  // positionner le curseur de lecture au début du hold de cette étape
+  const {segs,total}=schedule();
+  let acc=0;
+  for(const sg of segs){ if(sg.type==='hold'&&sg.frame===i) break;
+    if(sg.type==='trans'&&sg.from===i&&state.holdMs===0) break; acc+=sg.dur; }
+  scrub.value=Math.round(acc/total*1000);
+  timeInfo.textContent=(acc/1000).toFixed(1)+' / '+(total/1000).toFixed(1)+' s';
+  refreshSel(); render();
+}
+document.getElementById('btnAddFrame').addEventListener('click',()=>{
+  const cur=state.frames[state.current];
+  const copy={pose:{}};
+  for(const id in cur.pose) copy.pose[id]={...cur.pose[id]};
+  state.frames.splice(state.current+1,0,copy);
+  state.current++;
+  refreshAll();
+});
+document.getElementById('btnDupStart').addEventListener('click',()=>{
+  const first=state.frames[0];
+  const copy={pose:{}};
+  for(const id in first.pose) copy.pose[id]={...first.pose[id]};
+  state.frames.push(copy);
+  state.current=state.frames.length-1;
+  refreshAll();
+});
+document.getElementById('btnDelFrame').addEventListener('click',()=>{
+  if(state.frames.length<=1) return;
+  state.frames.splice(state.current,1);
+  state.current=Math.min(state.current,state.frames.length-1);
+  refreshAll();
+});
+document.getElementById('btnMoveL').addEventListener('click',()=>{
+  const i=state.current;
+  if(i===0) return;
+  [state.frames[i-1],state.frames[i]]=[state.frames[i],state.frames[i-1]];
+  state.current--;
+  refreshAll();
+});
+document.getElementById('btnMoveR').addEventListener('click',()=>{
+  const i=state.current;
+  if(i>=state.frames.length-1) return;
+  [state.frames[i+1],state.frames[i]]=[state.frames[i],state.frames[i+1]];
+  state.current++;
+  refreshAll();
+});
+
+/* ---------- Transport ---------- */
+const btnPlay=document.getElementById('btnPlay');
+const scrub=document.getElementById('scrub');
+const timeInfo=document.getElementById('timeInfo');
+btnPlay.addEventListener('click',()=>{ playing?stopPlay():startPlay(); });
+document.getElementById('btnFirst').addEventListener('click',()=>{
+  stopPlay(); scrub.value=0; selectFrame(0);
+});
+scrub.addEventListener('input',()=>{
+  stopPlay();
+  const {total}=schedule();
+  const tms=Number(scrub.value)/1000*total;
+  timeInfo.textContent=(tms/1000).toFixed(1)+' / '+(total/1000).toFixed(1)+' s';
+  render(poseAtTime(tms));
+});
+
+/* ---------- Réglages ---------- */
+const durRange=document.getElementById('durRange'),durVal=document.getElementById('durVal');
+const holdRange=document.getElementById('holdRange'),holdVal=document.getElementById('holdVal');
+durRange.addEventListener('input',()=>{ state.durMs=Number(durRange.value);
+  durVal.textContent=(state.durMs/1000).toFixed(1)+' s'; });
+holdRange.addEventListener('input',()=>{ state.holdMs=Number(holdRange.value);
+  holdVal.textContent=(state.holdMs/1000).toFixed(1)+' s'; });
+document.getElementById('smoothChk').addEventListener('change',e=>state.smooth=e.target.checked);
+document.getElementById('easeChk').addEventListener('change',e=>state.ease=e.target.checked);
+document.getElementById('pitchMode').addEventListener('change',e=>{
+  state.pitch=e.target.value; resizeCanvas(); refreshAll();
+});
+document.getElementById('orientSel').addEventListener('change',e=>{
+  state.orient=e.target.value; resizeCanvas(); refreshAll();
+});
+const markRange=document.getElementById('markRange'),markVal=document.getElementById('markVal');
+markRange.addEventListener('input',()=>{
+  state.markScale=Number(markRange.value)/100;
+  markVal.textContent=markRange.value+' %';
+  render();                   // aperçu immédiat pendant le glissement
+});
+// vignettes d'étapes redessinées une seule fois, au relâchement du curseur
+markRange.addEventListener('change',()=>refreshFrames());
+
+/* ---------- Clips du projet ---------- */
+const clipTabs=document.getElementById('clipTabs');
+function refreshClips(){
+  clipTabs.innerHTML='';
+  state.clips.forEach((c,i)=>{
+    const el=document.createElement('div');
+    el.className='clip'+(i===state.clip?' cur':'');
+    el.title='Clic : ouvrir · double-clic : renommer';
+    const n=document.createElement('span'); n.className='n'; n.textContent=i+1;
+    const nm=document.createElement('span'); nm.textContent=c.name;
+    el.append(n,nm);
+    el.addEventListener('click',()=>selectClip(i));
+    el.addEventListener('dblclick',()=>renameClip(i));
+    clipTabs.appendChild(el);
+  });
+  document.getElementById('btnDelClip').disabled=state.clips.length<=1;
+  document.getElementById('btnClipL').disabled=state.clip===0;
+  document.getElementById('btnClipR').disabled=state.clip>=state.clips.length-1;
+}
+function highlightClipTab(){
+  clipTabs.querySelectorAll('.clip').forEach((el,i)=>el.classList.toggle('cur',i===state.clip));
+}
+function selectClip(i){
+  if(i===state.clip) return;
+  stopPlay();
+  state.clip=i; state.selected=null; scrub.value=0;
+  refreshAll();
+}
+function renameClip(i){
+  const v=prompt('Nom du clip :',state.clips[i].name);
+  if(v===null) return;
+  state.clips[i].name=v.trim()||state.clips[i].name;
+  refreshClips();
+}
+function nextClipName(){
+  const used=new Set(state.clips.map(c=>c.name));
+  let i=state.clips.length+1;
+  while(used.has('Clip '+i)) i++;
+  return 'Clip '+i;
+}
+function insertClip(c){
+  stopPlay();
+  state.clips.splice(state.clip+1,0,c);
+  state.clip++; state.selected=null; scrub.value=0;
+  refreshAll();
+}
+function copyPose(pose){
+  const p={}; for(const id in pose) p[id]={...pose[id]};
+  return p;
+}
+document.getElementById('btnAddClip').addEventListener('click',()=>{
+  insertClip(newClip(nextClipName()));
+});
+document.getElementById('btnDupClip').addEventListener('click',()=>{
+  const c=state.clips[state.clip];
+  const copy={...c, name:c.name+' (copie)', current:0,
+    objects:c.objects.map(o=>({...o})),
+    frames:c.frames.map(f=>({pose:copyPose(f.pose)}))};
+  insertClip(copy);
+});
+document.getElementById('btnAddClipFrom').addEventListener('click',()=>{
+  // Reprend le dispositif de départ du clip courant — joueurs et ballon à leur
+  // position de l'étape 1 — mais pas les flèches, zones et textes, qui décrivent
+  // une situation précise et n'ont pas de sens dans une autre.
+  const c=state.clips[state.clip];
+  const garde=new Set(['playerA','playerB','ball']);
+  const objets=c.objects.filter(o=>garde.has(o.type) && c.frames[0].pose[o.id]);
+  const n=newClip(nextClipName());
+  n.objects=objets.map(o=>({...o}));
+  n.frames=[{pose:Object.fromEntries(objets.map(o=>
+    [o.id,{...c.frames[0].pose[o.id],visible:true}]))}];
+  n.durMs=c.durMs; n.holdMs=c.holdMs; n.smooth=c.smooth; n.ease=c.ease;
+  insertClip(n);
+});
+document.getElementById('btnDelClip').addEventListener('click',()=>{
+  if(state.clips.length<=1) return;
+  if(!confirm(`Supprimer le clip « ${state.clips[state.clip].name} » ?`)) return;
+  stopPlay();
+  state.clips.splice(state.clip,1);
+  state.clip=Math.min(state.clip,state.clips.length-1);
+  state.selected=null; scrub.value=0;
+  refreshAll();
+});
+document.getElementById('btnClipL').addEventListener('click',()=>{
+  const i=state.clip; if(i===0) return;
+  [state.clips[i-1],state.clips[i]]=[state.clips[i],state.clips[i-1]];
+  state.clip--; refreshClips();
+});
+document.getElementById('btnClipR').addEventListener('click',()=>{
+  const i=state.clip; if(i>=state.clips.length-1) return;
+  [state.clips[i+1],state.clips[i]]=[state.clips[i],state.clips[i+1]];
+  state.clip++; refreshClips();
+});
+document.getElementById('chainChk').addEventListener('change',e=>{
+  stopPlay(); state.chain=e.target.checked;
+});
+
+/* ---------- Placement rapide 4-3-3 ---------- */
+function preset433(team){
+  // Camps par défaut : les bleus occupent le camp x≈0 (en bas en vue verticale,
+  // à gauche en vue horizontale), les rouges le camp opposé.
+  const mirror = team==='playerA';
+  const X=x=>mirror?PITCH.L-x:x;
+  // y est donné depuis la touche gauche de l'équipe (celle qui attaque vers son x
+  // croissant) : quand on inverse le camp, sa gauche et sa droite s'inversent aussi.
+  const Y=y=>mirror?PITCH.W-y:y;
+  // Numérotation classique : 1 gardien, 2 latéral droit, 3 latéral gauche,
+  // 4-5 défenseurs centraux, 6 milieu défensif, 8 relayeur, 10 meneur,
+  // 7 ailier droit, 11 ailier gauche, 9 attaquant axial.
+  const spots=[
+    ['1',   5, 34],   // gardien
+    ['3',  20, 11],   // latéral gauche
+    ['4',  20, 26],   // défenseur central gauche
+    ['5',  20, 42],   // défenseur central droit
+    ['2',  20, 57],   // latéral droit
+    ['10', 38, 18],   // meneur, côté gauche
+    ['6',  34, 34],   // milieu défensif, pointe basse
+    ['8',  38, 50],   // relayeur, côté droit
+    ['11', 58, 11],   // ailier gauche
+    ['9',  60, 34],   // attaquant axial
+    ['7',  58, 57],   // ailier droit
+  ];
+  spots.forEach((s,i)=>{
+    const o=addObject(team,{x:X(s[1]),y:Y(s[2])});
+    o.label=s[0];
+    if(i===0) o.color='#16a34a'; // gardien en vert
+  });
+  refreshAll();
+}
+document.getElementById('preset433A').addEventListener('click',()=>preset433('playerA'));
+document.getElementById('preset433B').addEventListener('click',()=>preset433('playerB'));
+document.getElementById('btnClearAll').addEventListener('click',()=>{
+  if(!confirm('Effacer tous les objets et toutes les étapes de ce clip ?')) return;
+  state.objects=[]; state.frames=[{pose:{}}]; state.current=0; state.selected=null;
+  refreshAll();
+});
+
+/* ---------- Sauvegarde / chargement ---------- */
+document.getElementById('btnSave').addEventListener('click',()=>{
+  const data={ version:2, name:document.getElementById('projName').value,
+    pitch:state.pitch, orient:state.orient, chain:state.chain,
+    markScale:state.markScale,
+    clips:state.clips.map(c=>({ name:c.name,
+      durMs:c.durMs, holdMs:c.holdMs, smooth:c.smooth, ease:c.ease,
+      objects:c.objects, frames:c.frames })) };
+  const blob=new Blob([JSON.stringify(data,null,1)],{type:'application/json'});
+  dl(blob,slug(data.name,'projet')+'.json');
+});
+document.getElementById('btnLoad').addEventListener('click',()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      state.pitch=d.pitch||'full'; state.orient=d.orient||'h';
+      state.chain=d.chain===true;
+      state.markScale=Number(d.markScale)>0 ? Number(d.markScale) : 1;   // fichiers d'avant le réglage
+      // version 1 = un seul schéma par fichier : on l'enveloppe dans un projet
+      // à un clip, pour que les anciens fichiers restent lisibles tels quels.
+      const bruts = Array.isArray(d.clips) ? d.clips : [d];
+      state.clips = bruts.map((c,i)=>{
+        const n=newClip(c.name || (bruts.length>1?'Clip '+(i+1):(d.name||'Clip 1')));
+        n.durMs=c.durMs||1200; n.holdMs=c.holdMs??0;
+        n.smooth=c.smooth!==false; n.ease=c.ease===true;
+        n.objects=c.objects||[];
+        n.frames=c.frames&&c.frames.length?c.frames:[{pose:{}}];
+        return n;
+      });
+      if(!state.clips.length) state.clips=[newClip('Clip 1')];
+      state.clip=0; state.selected=null;
+      nextId=1+state.clips.reduce((m,c)=>c.objects.reduce(
+        (k,o)=>Math.max(k,parseInt(o.id.slice(1))||0),m),0);
+      document.getElementById('projName').value=d.name||'Projet';
+      scrub.value=0;   // les contrôles de projet sont recopiés par refreshAll()
+      resizeCanvas(); refreshAll();
+    }catch(err){ alert('Fichier invalide : '+err.message); }
+  };
+  r.readAsText(f);
+  e.target.value='';
+});
+function slug(s,repli){
+  const v=(s||'').replace(/[^\w\-éèêàç ]/g,'').trim().replace(/\s+/g,'-');
+  return v||repli;
+}
+function projSlug(){ return slug(document.getElementById('projName').value,'projet'); }
+function clipSlug(){ return slug(state.clips[state.clip].name,'clip-'+(state.clip+1)); }
+function dl(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
+}
+
+/* =====================================================================
+   ENCODEUR GIF89a — pur JavaScript (palette fixe + LZW)
+   ===================================================================== */
+/* Palette adaptative : on relève les couleurs réellement présentes dans la
+   scène (échantillon d'images) et on garde les 256 plus fréquentes. Les
+   couleurs rares (bords anti-aliasés) sont rabattues sur la plus proche. */
+function buildPalette(samples){
+  const hist=new Map();
+  for(const im of samples){
+    const d=im.data;
+    for(let i=0;i<d.length;i+=4){
+      const key=(d[i]<<16)|(d[i+1]<<8)|d[i+2];
+      hist.set(key,(hist.get(key)||0)+1);
+    }
+  }
+  const colors=[...hist.entries()].sort((a,b)=>b[1]-a[1]).slice(0,256).map(e=>e[0]);
+  const pal=new Uint8Array(768); // 256 entrées, complétées de noir si besoin
+  colors.forEach((c,i)=>{ pal[i*3]=c>>16&255; pal[i*3+1]=c>>8&255; pal[i*3+2]=c&255; });
+  return {pal,colors};
+}
+function makeQuantizer(colors){
+  const cache=new Map();
+  colors.forEach((c,i)=>cache.set(c,i)); // correspondances exactes pré-remplies
+  return function(imgData){
+    const d=imgData.data, n=imgData.width*imgData.height;
+    const out=new Uint8Array(n);
+    for(let i=0;i<n;i++){
+      const r=d[i*4],g=d[i*4+1],b=d[i*4+2];
+      const key=(r<<16)|(g<<8)|b;
+      let idx=cache.get(key);
+      if(idx===undefined){
+        let best=0,bd=Infinity;
+        for(let k=0;k<colors.length;k++){
+          const c=colors[k];
+          const dr=r-(c>>16&255), dg=g-(c>>8&255), db=b-(c&255);
+          const dist=2*dr*dr+4*dg*dg+db*db; // pondération perceptuelle
+          if(dist<bd){bd=dist;best=k;}
+        }
+        idx=best; cache.set(key,idx);
+      }
+      out[i]=idx;
+    }
+    return out;
+  };
+}
+function lzwEncode(indices, out){
+  const minCode=8, clear=256, eoi=257;
+  let codeSize=minCode+1, next=eoi+1;
+  let dict=new Map();
+  let acc=0, accBits=0;
+  const bytes=[];
+  const emit=code=>{
+    acc|=code<<accBits; accBits+=codeSize;
+    while(accBits>=8){ bytes.push(acc&255); acc>>>=8; accBits-=8; }
+  };
+  emit(clear);
+  let prev=indices[0];
+  for(let i=1;i<indices.length;i++){
+    const k=indices[i];
+    const key=(prev<<8)|k;
+    const got=dict.get(key);
+    if(got!==undefined){ prev=got; continue; }
+    emit(prev);
+    if(next===4096){
+      emit(clear); dict=new Map(); codeSize=minCode+1; next=eoi+1;
+    } else {
+      dict.set(key,next);
+      if(next===(1<<codeSize)&&codeSize<12) codeSize++;
+      next++;
+    }
+    prev=k;
+  }
+  emit(prev); emit(eoi);
+  if(accBits>0) bytes.push(acc&255);
+  // sous-blocs de 255 octets max
+  out.push(minCode);
+  for(let i=0;i<bytes.length;i+=255){
+    const blk=bytes.slice(i,i+255);
+    out.push(blk.length,...blk);
+  }
+  out.push(0);
+}
+function GifBuilder(w,h,pal){
+  const out=[];
+  const u16=v=>{out.push(v&255,(v>>8)&255);};
+  // entête
+  out.push(0x47,0x49,0x46,0x38,0x39,0x61); // "GIF89a"
+  u16(w); u16(h);
+  out.push(0xF7,0,0); // GCT 256 couleurs
+  for(let i=0;i<768;i++) out.push(pal[i]);
+  // boucle infinie (Netscape)
+  out.push(0x21,0xFF,0x0B);
+  for(const ch of 'NETSCAPE2.0') out.push(ch.charCodeAt(0));
+  out.push(3,1,0,0,0);
+  return {
+    addFrame(indices, delayCs){
+      out.push(0x21,0xF9,4,0x04); u16(delayCs); out.push(0,0); // GCE
+      out.push(0x2C); u16(0); u16(0); u16(w); u16(h); out.push(0); // descripteur
+      lzwEncode(indices,out);
+    },
+    finish(){
+      out.push(0x3B);
+      return new Uint8Array(out);
+    }
+  };
+}
+
+/* ---------- Export PNG de l'étape courante ---------- */
+document.getElementById('btnExportPng').addEventListener('click',()=>{
+  const d=canvasDims();
+  const off=document.createElement('canvas');
+  off.width=d.w; off.height=d.h;
+  const oc=off.getContext('2d');
+  const ot=makeTransform(d.w,d.h);
+  const save=ctxSwap(ot);
+  drawPitch(oc,ot);
+  drawObjects(oc,ot,framePose(state.current),null);   // sans surbrillance de sélection
+  ctxSwap(save);
+  off.toBlob(b=>dl(b,`${projSlug()}-${clipSlug()}-etape-${state.current+1}.png`),'image/png');
+});
+
+/* ---------- Export GIF ---------- */
+const btnExport=document.getElementById('btnExport');
+btnExport.addEventListener('click',async()=>{
+  stopPlay();
+  const fps=Number(document.getElementById('fpsSel').value);
+  const scale=Number(document.getElementById('sizeSel').value);
+  const {total}=schedule();
+  const nFrames=Math.max(1,Math.round(total/1000*fps));
+  const d=canvasDims();
+  const w=Math.round(d.w*scale)&~1, h=Math.round(d.h*scale)&~1;
+  const off=document.createElement('canvas');
+  off.width=w; off.height=h;
+  const oc=off.getContext('2d',{willReadFrequently:true});
+  const ot=makeTransform(w,h);
+  const delayCs=Math.max(2,Math.round(100/fps));
+  const pw=document.getElementById('progressWrap');
+  const pf=document.getElementById('progressFill');
+  const pt=document.getElementById('progressTxt');
+  pw.style.display='block'; btnExport.disabled=true;
+  // Passe 1 — palette adaptative : échantillonner quelques images pour
+  // conserver les couleurs exactes de la scène (bandes de tonte incluses)
+  pt.textContent='Analyse des couleurs…';
+  await new Promise(r=>setTimeout(r,0));
+  const sampleIdx=[...new Set([0,Math.floor(nFrames/4),Math.floor(nFrames/2),
+    Math.floor(3*nFrames/4),Math.max(0,nFrames-1)])];
+  const samples=[];
+  for(const si of sampleIdx){
+    const tms=si/nFrames*total;
+    const save=ctxSwap(ot);
+    drawPitch(oc,ot);
+    drawObjects(oc,ot,poseAtTime(tms),null);
+    ctxSwap(save);
+    samples.push(oc.getImageData(0,0,w,h));
+  }
+  const {pal,colors}=buildPalette(samples);
+  const quantize=makeQuantizer(colors);
+  const gif=GifBuilder(w,h,pal);
+  for(let i=0;i<nFrames;i++){
+    const tms=i/nFrames*total;
+    const save=ctxSwap(ot);
+    drawPitch(oc,ot);
+    drawObjects(oc,ot,poseAtTime(tms),null);
+    ctxSwap(save);
+    gif.addFrame(quantize(oc.getImageData(0,0,w,h)),delayCs);
+    pf.style.width=Math.round((i+1)/nFrames*90)+'%';
+    pt.textContent=`Image ${i+1} / ${nFrames}…`;
+    if(i%3===0) await new Promise(r=>setTimeout(r,0)); // garder l'UI réactive
+  }
+  pt.textContent='Assemblage du fichier…';
+  pf.style.width='100%';
+  await new Promise(r=>setTimeout(r,30));
+  const bytes=gif.finish();
+  dl(new Blob([bytes],{type:'image/gif'}), `${projSlug()}-${clipSlug()}.gif`);
+  pt.textContent='GIF téléchargé ✓';
+  btnExport.disabled=false;
+  setTimeout(()=>{pw.style.display='none'; pf.style.width='0%';},2500);
+});
+
+/* ---------- Clavier ---------- */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  if(e.code==='Space'){ e.preventDefault(); playing?stopPlay():startPlay(); }
+  else if(e.key==='Delete'||e.key==='Backspace'){
+    if(state.selected){ e.preventDefault(); deleteObject(state.selected); }
+  }
+  else if(e.key==='v'||e.key==='V') setTool('select');
+});
+
+/* ---------- Aide ---------- */
+document.getElementById('btnHelp').addEventListener('click',()=>
+  document.getElementById('helpOverlay').style.display='flex');
+document.getElementById('btnCloseHelp').addEventListener('click',()=>
+  document.getElementById('helpOverlay').style.display='none');
+document.getElementById('helpOverlay').addEventListener('click',e=>{
+  if(e.target.id==='helpOverlay') e.currentTarget.style.display='none';
+});
+
+/* ---------- Rafraîchissement global ---------- */
+function syncProjectControls(){
+  /* Vue, orientation, taille des pastilles, lecture enchaînée sont propres au
+     PROJET. Il faut les recopier depuis `state` et non se fier à la valeur
+     écrite dans le HTML : au rechargement de la page, le navigateur restaure
+     de lui-même la position des curseurs et des listes alors que `state`
+     repart de ses valeurs par défaut — le curseur affichait 220 % pendant que
+     les pastilles étaient dessinées à 100 %. */
+  document.getElementById('pitchMode').value=state.pitch;
+  document.getElementById('orientSel').value=state.orient;
+  document.getElementById('chainChk').checked=state.chain;
+  markRange.value=Math.round(state.markScale*100);
+  markVal.textContent=markRange.value+' %';
+}
+function syncClipControls(){
+  // durée, pause, lissage… sont propres au clip : les curseurs doivent suivre
+  durRange.value=state.durMs; durVal.textContent=(state.durMs/1000).toFixed(1)+' s';
+  holdRange.value=state.holdMs; holdVal.textContent=(state.holdMs/1000).toFixed(1)+' s';
+  document.getElementById('smoothChk').checked=state.smooth;
+  document.getElementById('easeChk').checked=state.ease;
+}
+function refreshAll(){
+  resizeCanvas();
+  refreshClips();
+  syncProjectControls();
+  syncClipControls();
+  refreshFrames();
+  refreshSel();
+  const {total}=schedule();
+  timeInfo.textContent='0.0 / '+(total/1000).toFixed(1)+' s';
+  render();
+}
+
+/* ---------- Démarrage : ballon au centre ---------- */
+addObject('ball',{x:PITCH.L/2,y:PITCH.W/2});
+refreshAll();
+</script>
+</body>
+</html>
